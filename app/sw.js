@@ -1,5 +1,5 @@
 /* Prisma — service worker da versão web: guarda o app para abrir sem internet. */
-const VERSION = 'prisma-1.1.1';
+const VERSION = 'prisma-1.2.0';
 const FILES = ['./', 'index.html', 'app.css', 'store.js', 'reader.js', 'analyze.js', 'charts.js', 'views.js', 'app.js', 'logo.svg', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png'];
 
 self.addEventListener('install', e => {

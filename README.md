@@ -52,7 +52,7 @@ Também reconhece tabelas com os períodos nas colunas (jan, fev… ou 2023, 202
 | **Cartões** | Um achado por imagem (1080×1350), para salvar ou compartilhar |
 | **Dados** | A tabela com busca, ordenação e exportação em CSV |
 
-Visão geral, Resumo, Relatório, Infográfico e Fofinho saem em **PDF**.
+O botão **PDF** junta tudo num arquivo só: todas as abas da tabela aberta, a planilha inteira (visão geral e o relatório de cada tabela) ou apenas a aba que está na tela.
 
 ## Sincronização
 

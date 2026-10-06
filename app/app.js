@@ -71,7 +71,7 @@
     $('#sidebar').innerHTML = `<div class="brand">${LOGO}<b>Prisma</b><span class="grow"></span><button class="icon onlysm" data-act="side" title="Fechar">${ic('x')}</button></div>
 <button class="btn block" data-act="new">${ic('plus')} Nova planilha</button>
 <div class="list">${list.map(b => `<button class="item${b.id === S.set.cur ? ' on' : ''}" data-act="open" data-id="${b.id}"><span class="ititle">${esc(b.title)}</span><span class="imeta">${count((b.sheets[b.sheet] || { rows: [] }).rows.length, 'linha', 'linhas')} · ${fmtRel(b.updated)}</span></button>`).join('') || '<p class="muted pad">Nenhuma planilha ainda.</p>'}</div>
-<div class="sidefoot"><span class="ver">Prisma 1.1.1</span>${canInstall() ? `<button class="link" data-act="install">${ic('dl')}<span>Instalar o aplicativo</span></button>` : ''}
+<div class="sidefoot"><span class="ver">Prisma 1.2</span>${canInstall() ? `<button class="link" data-act="install">${ic('dl')}<span>Instalar o aplicativo</span></button>` : ''}
 <button class="link" data-act="settings" title="Ajustes e sincronização">${ic(Sync.on ? 'sync' : 'gear')}<span>${Sync.on ? (Sync.error ? 'Falha na sincronização' : Sync.last ? 'Sincronizado ' + fmtRel(Sync.last) : 'Sincronizando…') : 'Ajustes'}</span></button></div>`;
   }
   const sideSoon = debounce(renderSide, 300);
@@ -96,10 +96,10 @@
     const b = cur(), top = $('#topbar'), tabs = $('#tabs');
     if (!b) { top.innerHTML = `<button class="icon onlysm" data-act="side">${ic('menu')}</button><b class="grow">Prisma</b>`; tabs.innerHTML = ''; return; }
     const sc = (b.cfg.s || {})[b.sheet] || {}, opt = (list, sel) => list.map(([v, l]) => `<option value="${v}"${String(v) === String(sel) ? ' selected' : ''}>${esc(l)}</option>`).join('');
-    const tab = curTab(), pdf = ['geral', 'resumo', 'relatorio', 'info', 'fofo'].includes(tab);
+    const tab = curTab();
     top.innerHTML = `<div class="trow"><button class="icon onlysm" data-act="side" title="Planilhas">${ic('menu')}</button><input id="title" value="${esc(b.title)}" aria-label="Título" spellcheck="false">
 ${b.source.kind === 'gsheet' ? `<button class="btn ghost sm" data-act="refresh" title="Buscar de novo no Google Planilhas">${ic('sync')}<span class="hidesm">Atualizar</span></button>` : ''}
-${pdf ? `<button class="btn sm" data-act="pdf">${ic('pdf')}<span class="hidesm">PDF</span></button>` : tab === 'dados' ? `<button class="btn sm" data-act="csv">${ic('dl')}<span class="hidesm">CSV</span></button>` : ''}
+${tab === 'dados' ? `<button class="btn ghost sm" data-act="csv">${ic('dl')}<span class="hidesm">CSV</span></button>` : ''}<button class="btn sm" data-act="pdf" title="Salvar em PDF">${ic('pdf')}<span class="hidesm">PDF</span></button>
 <button class="icon" data-act="remove" title="Excluir esta planilha">${ic('trash')}</button></div>
 ${A ? `<div class="focus">${b.sheets.length > 1 ? `<label>Tabela<select data-f="sheet">${sheetOpts(b)}</select></label>` : ''}
 <label>Valor<select data-f="measure">${opt([[-1, 'Contar registros'], ...A.nums.map(c => [c.i, c.name])], A.measure ? A.measure.i : -1)}</select></label>
@@ -241,31 +241,55 @@ ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => 
     setTimeout(() => URL.revokeObjectURL(a.href), 30000);
     toast('Salvo em Downloads: ' + name);
   }
-  /* Monta um documento independente com a visão atual, em tema claro e largura de página. */
-  function printable() {
-    const host = document.createElement('div'), c = newCtx();
+  /* Monta um documento independente, em tema claro e largura de página. parts: lista de [aba, índice da tabela]. */
+  function printable(parts) {
+    const b = cur(), host = document.createElement('div'), c = newCtx();
+    c.ds = { q: '', sort: null, dir: 1, limit: 2000 };
     host.dataset.theme = 'light';
     host.style.cssText = 'position:fixed;left:-9999px;top:0;width:700px';
-    host.innerHTML = `<div class="view v-${curTab()}">${Views.render(curTab(), A, c)}</div>`;
+    host.innerHTML = parts.map(([tab, i]) => {
+      const An = i === b.sheet ? A : Analyze.build(b, i);
+      return An && An.n ? `<section class="psec"><div class="view v-${tab}">${Views.render(tab, An, c)}</div></section>` : '';
+    }).join('');
     document.body.append(host);
     mountCharts(host, c);
     const css = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (e) { return []; } }).map(r => r.cssText).join('\n');
     const html = `<!doctype html><html lang="pt-BR" data-theme="light"><head><meta charset="utf-8"><title>${esc(A.title)}</title><style>${css}
 @page{size:A4;margin:12mm}html,body{height:auto!important;overflow:visible!important;background:#fff!important}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.view{max-width:none;padding:0;overflow:visible}.tools,.btn,.icon{display:none!important}.card,.fcard,.pblock,.say,figure,.tile,li,tr{break-inside:avoid}h2,h3{break-after:avoid}</style></head><body>${host.innerHTML}</body></html>`;
+.view{max-width:none;padding:0;overflow:visible}.tools,.btn,.icon,.builder,.dbar,.notice,.hint,.tsel{display:none!important}.psec+.psec{break-before:page}.tscroll{max-height:none!important;overflow:visible!important}th{position:static}
+.card,.fcard,.pblock,.say,figure,.tile,.tcard,.pcard,li,tr{break-inside:avoid}h2,h3{break-after:avoid}</style></head><body>${host.innerHTML}</body></html>`;
     host.remove();
     return html;
   }
-  async function exportPdf() {
-    const html = printable(), name = `${fname(A.title)} - ${Views.TABS.find(t => t[0] === curTab())[1]}`;
-    if (!Sync.avail) return printDoc(html);
-    toast('Escolha onde salvar o PDF na janela que abriu');
-    try {
-      const r = await api('pdf', { method: 'POST', body: name + '\n' + html });
-      if (r.status === 204) return toast('Exportação cancelada');
-      if (!r.ok) throw new Error();
-      toast('PDF salvo em ' + (await r.json()).saved, { label: 'Abrir', fn: () => api('open', { method: 'POST' }) });
-    } catch (e) { toast('Não foi possível gerar o arquivo; usando a impressão'); printDoc(html); }
+  /* O que vai no PDF: só a aba aberta, tudo desta tabela, ou a planilha inteira. */
+  function exportPdf() {
+    const b = cur(), tab = curTab(), label = id => Views.TABS.find(t => t[0] === id)[1], over = hasOverview(b), many = b.sheets.length > 1;
+    const full = [...(over ? ['geral'] : []), 'resumo', 'graficos', 'relatorio', 'info', 'fofo'];
+    const last = ['aba', 'tabela', 'tudo'].includes(S.set.pdfMode) ? S.set.pdfMode : 'tabela', sel = last === 'tudo' && !many ? 'tabela' : last;
+    const opt = (v, title, sub) => `<label class="choice"><input type="radio" name="pdfm" value="${v}"${sel === v ? ' checked' : ''}><span><b>${esc(title)}</b><small>${esc(sub)}</small></span></label>`;
+    const m = modal({ title: 'Salvar em PDF', body: `
+${opt('tabela', many ? 'Tudo desta tabela' : 'Tudo', `${full.map(label).join(', ')}${many ? ` de “${b.sheets[b.sheet].name}”` : ''}, num arquivo só.`)}
+${many ? opt('tudo', 'A planilha inteira', `${over ? 'Visão geral e o ' : 'O '}relatório completo de cada uma das ${b.sheets.length} tabelas. Fica um documento longo.`) : ''}
+${opt('aba', `Só a aba ${label(tab)}`, 'Apenas o que está na tela agora.')}
+<p class="muted">${Sync.avail ? 'O arquivo é gerado direto, sem passar pela tela de impressão.' : touch() ? 'O documento abre numa nova aba com a tela de impressão: escolha “Salvar como PDF”.' : 'Na janela de impressão, escolha “Salvar como PDF” como destino.'}</p>
+<div class="mfoot"><button class="btn ghost" data-close>Cancelar</button><button class="btn" id="pdfok">${ic('pdf')} Gerar PDF</button></div>` });
+    $('#pdfok', m.el).onclick = async () => {
+      const mode = $('input[name=pdfm]:checked', m.el).value;
+      S.set.pdfMode = mode; Store.saveSet();
+      m.close();
+      const parts = mode === 'aba' ? [[tab, b.sheet]] : mode === 'tabela' ? full.map(t => [t, b.sheet]) : [...(over ? [['geral', b.sheet]] : []), ...b.sheets.map((_, i) => ['relatorio', i])];
+      toast(mode === 'tudo' ? 'Montando o documento da planilha inteira…' : 'Montando o documento…');
+      await new Promise(r => setTimeout(r, 50));
+      const html = printable(parts), name = `${fname(A.title)}${mode === 'aba' ? ' - ' + label(tab) : mode === 'tabela' && many ? ' - ' + fname(b.sheets[b.sheet].name) : ''}`;
+      if (!Sync.avail) return printDoc(html);
+      toast('Escolha onde salvar o PDF na janela que abriu');
+      try {
+        const r = await api('pdf', { method: 'POST', body: name + '\n' + html });
+        if (r.status === 204) return toast('Exportação cancelada');
+        if (!r.ok) throw new Error();
+        toast('PDF salvo em ' + (await r.json()).saved, { label: 'Abrir', fn: () => api('open', { method: 'POST' }) });
+      } catch (e) { toast('Não foi possível gerar o arquivo; usando a impressão'); printDoc(html); }
+    };
   }
   function printDoc(html) {
     if (touch()) {
@@ -387,7 +411,7 @@ ${Sync.drives.length > 1 ? `<p class="muted">Há mais de uma conta do Google Dri
       : `<label>Sincronização</label><p class="muted">A sincronização automática pelo Google Drive funciona no aplicativo de Windows (Prisma.exe). Aqui, as planilhas ficam guardadas neste aparelho: use o backup para levar a outro lugar.</p>`}
 <label>Backup</label><div class="row wrap"><button class="btn ghost sm" data-k="export">${ic('dl')} Exportar backup</button><button class="btn ghost sm" data-k="import">${ic('up')} Importar…</button></div>
 <label>Zona de perigo</label><button class="btn ghost sm danger" data-k="wipe">${ic('trash')} Apagar tudo deste aparelho</button>
-<p class="muted center">Prisma 1.1.1 · seus dados não saem do aparelho</p>` });
+<p class="muted center">Prisma 1.2 · seus dados não saem do aparelho</p>` });
     $('#settheme', m.el).value = S.set.theme;
     $('#settheme', m.el).onchange = e => { S.set.theme = e.target.value; Store.saveSet(); applyTheme(); renderView(); };
     const again = () => { m.close(); settingsModal(); };
