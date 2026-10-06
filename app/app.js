@@ -71,7 +71,7 @@
     $('#sidebar').innerHTML = `<div class="brand">${LOGO}<b>Prisma</b><span class="grow"></span><button class="icon onlysm" data-act="side" title="Fechar">${ic('x')}</button></div>
 <button class="btn block" data-act="new">${ic('plus')} Nova planilha</button>
 <div class="list">${list.map(b => `<button class="item${b.id === S.set.cur ? ' on' : ''}" data-act="open" data-id="${b.id}"><span class="ititle">${esc(b.title)}</span><span class="imeta">${count((b.sheets[b.sheet] || { rows: [] }).rows.length, 'linha', 'linhas')} · ${fmtRel(b.updated)}</span></button>`).join('') || '<p class="muted pad">Nenhuma planilha ainda.</p>'}</div>
-<div class="sidefoot">${canInstall() ? `<button class="link" data-act="install">${ic('dl')}<span>Instalar o aplicativo</span></button>` : ''}
+<div class="sidefoot"><span class="ver">Prisma 1.1.1</span>${canInstall() ? `<button class="link" data-act="install">${ic('dl')}<span>Instalar o aplicativo</span></button>` : ''}
 <button class="link" data-act="settings" title="Ajustes e sincronização">${ic(Sync.on ? 'sync' : 'gear')}<span>${Sync.on ? (Sync.error ? 'Falha na sincronização' : Sync.last ? 'Sincronizado ' + fmtRel(Sync.last) : 'Sincronizando…') : 'Ajustes'}</span></button></div>`;
   }
   const sideSoon = debounce(renderSide, 300);
@@ -123,16 +123,27 @@ ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => 
     }
     if (!A || !A.n) { v.innerHTML = '<p class="empty">Esta aba da planilha não tem dados.</p>'; return; }
     ctx = newCtx();
-    v.innerHTML = `<div class="view v-${curTab()}">${Views.render(curTab(), A, ctx)}</div>`;
+    const warn = !stale(b) ? '' : `<div class="notice">${ic('sync')}<span>Esta planilha foi lida por uma versão antiga do Prisma, que tratava cada aba como uma tabela só. ${b.source.kind === 'gsheet' ? 'Estou buscando de novo no Google Planilhas; se não der certo, toque em <b>Reler agora</b>.' : 'Abra o arquivo de novo em <b>Nova planilha</b> para ele ser entendido direito.'}</span>${b.source.kind === 'gsheet' ? '<button class="btn sm" data-act="refresh">Reler agora</button>' : '<button class="btn sm" data-act="new">Nova planilha</button>'}</div>`;
+    v.innerHTML = `<div class="view v-${curTab()}">${warn}${Views.render(curTab(), A, ctx)}</div>`;
     mountCharts(v, ctx);
   }
   function renderAll() { A = analysis(); renderSide(); renderTop(); renderView(); }
+  /* Planilhas guardadas antes da versão 1.1 foram lidas como uma tabela por aba: as do Google são relidas sozinhas. */
+  const stale = b => !!b && !b.seed && !(b.v >= 2);
+  const upgrading = new Set();
+  function upgrade() {
+    const b = cur();
+    if (!stale(b) || b.source.kind !== 'gsheet' || !b.source.url || upgrading.has(b.id) || navigator.onLine === false) return;
+    upgrading.add(b.id);
+    importGoogle(b.source.url, b);
+  }
   function openBoard(id) {
     S.set.cur = id; ds = { q: '', sort: null, dir: 1, limit: 200 };
     Store.saveSet();
     document.body.classList.remove('side-open');
     renderAll();
     $('#view').scrollTop = 0;
+    upgrade();
   }
   const saveBoard = b => { b.updated = Date.now(); return DB.put('boards', b); };
   const sheetCfg = b => { b.cfg.s = b.cfg.s || {}; return b.cfg.s[b.sheet] = b.cfg.s[b.sheet] || {}; };
@@ -150,7 +161,10 @@ ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => 
     const score = s => s.rows.length * Math.min(s.header.length, 8) * (s.rows.slice(0, 20).some(r => r.some(v => v != null && Analyze.isNum(v))) ? 1 : 0.2);
     const best = sheets.reduce((a, s, i) => score(s) > score(sheets[a]) ? i : a, 0), tabs = new Set(sheets.map(s => s.tab)).size;
     if (into) {
-      Object.assign(into, { sheets, kpis, sheet: Math.min(into.sheet, sheets.length - 1) });
+      // planilha guardada por uma versão antiga: as escolhas de coluna não valem mais para as tabelas novas
+      const old = stale(into);
+      Object.assign(into, { sheets, kpis, v: 2, sheet: old ? best : Math.min(into.sheet, sheets.length - 1) });
+      if (old) { into.cfg = {}; if (found && into.title === 'Planilha do Google') into.title = found; S.set.tab = hasOverview(into) ? 'geral' : 'resumo'; Store.saveSet(); }
       normalize(into); saveBoard(into); renderAll();
       return into;
     }
@@ -373,7 +387,7 @@ ${Sync.drives.length > 1 ? `<p class="muted">Há mais de uma conta do Google Dri
       : `<label>Sincronização</label><p class="muted">A sincronização automática pelo Google Drive funciona no aplicativo de Windows (Prisma.exe). Aqui, as planilhas ficam guardadas neste aparelho: use o backup para levar a outro lugar.</p>`}
 <label>Backup</label><div class="row wrap"><button class="btn ghost sm" data-k="export">${ic('dl')} Exportar backup</button><button class="btn ghost sm" data-k="import">${ic('up')} Importar…</button></div>
 <label>Zona de perigo</label><button class="btn ghost sm danger" data-k="wipe">${ic('trash')} Apagar tudo deste aparelho</button>
-<p class="muted center">Prisma 1.1 · seus dados não saem do aparelho</p>` });
+<p class="muted center">Prisma 1.1.1 · seus dados não saem do aparelho</p>` });
     $('#settheme', m.el).value = S.set.theme;
     $('#settheme', m.el).onchange = e => { S.set.theme = e.target.value; Store.saveSet(); applyTheme(); renderView(); };
     const again = () => { m.close(); settingsModal(); };
@@ -485,6 +499,7 @@ ${Sync.drives.length > 1 ? `<p class="muted">Há mais de uma conta do Google Dri
       addEventListener('focus', () => syncNow());
     }
     renderSide();
+    upgrade();
   }
   init();
 })();

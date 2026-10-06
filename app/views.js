@@ -92,7 +92,9 @@ ${insChart(A, ctx, main)}
     const opt = (list, sel) => list.map(([v, l]) => `<option value="${v}"${String(v) === String(sel) ? ' selected' : ''}>${esc(l)}</option>`).join('');
     const xs = [...A.cats, ...A.dates, ...A.nums].map(c => [c.i, c.name]), ys = [[-1, 'Contagem de registros'], ...A.nums.map(c => [c.i, c.name])];
     const custom = (A.board.cfg.charts || []).map((s, k) => [s, k]).filter(([s]) => (s.sh || 0) === A.board.sheet);
-    const auto = Analyze.gallery(A).map(s => Analyze.resolve(A, s)).filter(Boolean);
+    // gráfico em que tudo é zero ou só há um grupo não diz nada
+    const useful = c => c && (c.items ? c.items.length >= 2 && c.items.some(g => g.v !== 0) : c.values ? new Set(c.values).size > 1 : c.pts.length >= 3);
+    const auto = Analyze.gallery(A).map(s => Analyze.resolve(A, s)).filter(useful);
     return `<section class="card builder"><h3>Montar um gráfico</h3><div class="brow">
 <label>Tipo<select id="btype">${opt([['bar', 'Barras'], ['line', 'Linha no tempo'], ['donut', 'Rosca (participação)'], ['hist', 'Distribuição'], ['scatter', 'Dispersão (relação)']])}</select></label>
 <label>Agrupar por / eixo<select id="bx">${opt(xs, A.dim ? A.dim.i : '')}</select></label>

@@ -116,6 +116,7 @@ function normalize(b) {
   b.kpis = (Array.isArray(b.kpis) ? b.kpis : []).filter(k => k && typeof k.label === 'string' && (typeof k.value === 'number' || typeof k.value === 'string')).map(k => ({ tab: str(k.tab), label: k.label, value: k.value, unit: str(k.unit) }));
   b.cfg = b.cfg && typeof b.cfg === 'object' ? b.cfg : {};
   b.cfg.charts = Array.isArray(b.cfg.charts) ? b.cfg.charts.filter(c => c && typeof c === 'object') : [];
+  b.v = +b.v || 1; // 2 = lida pelo recorte em tabelas e indicadores
   b.created = +b.created || Date.now(); b.updated = +b.updated || b.created;
   return b;
 }
@@ -133,7 +134,7 @@ const Store = {
   },
   create(title, source, sheets, seed, kpis) {
     const now = Date.now();
-    const b = normalize({ id: uid(), title, source, sheets, kpis, sheet: 0, cfg: {}, created: now, updated: now });
+    const b = normalize({ id: uid(), title, source, sheets, kpis, v: 2, sheet: 0, cfg: {}, created: now, updated: now });
     if (seed) b.seed = true;
     S.boards.push(b);
     DB.put('boards', b);
