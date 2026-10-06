@@ -5,6 +5,8 @@
   let A = null, ctx = null, cache = { key: '', A: null };
   let ds = { q: '', sort: null, dir: 1, limit: 200 };
   const cur = () => S.boards.find(b => b.id === S.set.cur);
+  const hasOverview = b => !!b && (b.sheets.length > 1 || (b.kpis || []).length > 0);
+  const curTab = () => S.set.tab === 'geral' && !hasOverview(cur()) ? 'resumo' : S.set.tab;
   const touch = () => matchMedia('(pointer: coarse)').matches;
   const fname = s => String(s || 'prisma').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 80) || 'prisma';
 
@@ -82,21 +84,29 @@
     if (cache.key !== key) cache = { key, A: Analyze.build(b) };
     return cache.A;
   }
+  /* Lista de tabelas agrupada pela aba de origem. */
+  function sheetOpts(b) {
+    const groups = [...new Set(b.sheets.map(s => s.tab || ''))];
+    return groups.map(gr => {
+      const o = b.sheets.map((s, i) => [s, i]).filter(([s]) => (s.tab || '') === gr).map(([s, i]) => `<option value="${i}"${i === b.sheet ? ' selected' : ''}>${esc(gr && s.name.startsWith(gr + ' · ') ? s.name.slice(gr.length + 3) : s.name)}</option>`).join('');
+      return gr && groups.length > 1 ? `<optgroup label="${esc(gr)}">${o}</optgroup>` : o;
+    }).join('');
+  }
   function renderTop() {
     const b = cur(), top = $('#topbar'), tabs = $('#tabs');
     if (!b) { top.innerHTML = `<button class="icon onlysm" data-act="side">${ic('menu')}</button><b class="grow">Prisma</b>`; tabs.innerHTML = ''; return; }
     const sc = (b.cfg.s || {})[b.sheet] || {}, opt = (list, sel) => list.map(([v, l]) => `<option value="${v}"${String(v) === String(sel) ? ' selected' : ''}>${esc(l)}</option>`).join('');
-    const pdf = ['resumo', 'relatorio', 'info', 'fofo'].includes(S.set.tab);
+    const tab = curTab(), pdf = ['geral', 'resumo', 'relatorio', 'info', 'fofo'].includes(tab);
     top.innerHTML = `<div class="trow"><button class="icon onlysm" data-act="side" title="Planilhas">${ic('menu')}</button><input id="title" value="${esc(b.title)}" aria-label="Título" spellcheck="false">
 ${b.source.kind === 'gsheet' ? `<button class="btn ghost sm" data-act="refresh" title="Buscar de novo no Google Planilhas">${ic('sync')}<span class="hidesm">Atualizar</span></button>` : ''}
-${pdf ? `<button class="btn sm" data-act="pdf">${ic('pdf')}<span class="hidesm">PDF</span></button>` : S.set.tab === 'dados' ? `<button class="btn sm" data-act="csv">${ic('dl')}<span class="hidesm">CSV</span></button>` : ''}
+${pdf ? `<button class="btn sm" data-act="pdf">${ic('pdf')}<span class="hidesm">PDF</span></button>` : tab === 'dados' ? `<button class="btn sm" data-act="csv">${ic('dl')}<span class="hidesm">CSV</span></button>` : ''}
 <button class="icon" data-act="remove" title="Excluir esta planilha">${ic('trash')}</button></div>
-${A ? `<div class="focus">${b.sheets.length > 1 ? `<label>Aba<select data-f="sheet">${opt(b.sheets.map((s, i) => [i, s.name]), b.sheet)}</select></label>` : ''}
+${A ? `<div class="focus">${b.sheets.length > 1 ? `<label>Tabela<select data-f="sheet">${sheetOpts(b)}</select></label>` : ''}
 <label>Valor<select data-f="measure">${opt([[-1, 'Contar registros'], ...A.nums.map(c => [c.i, c.name])], A.measure ? A.measure.i : -1)}</select></label>
 ${A.measure ? `<label>Conta<select data-f="agg">${opt([['sum', 'Soma'], ['avg', 'Média']], A.agg)}</select></label>` : ''}
 ${A.cats.length ? `<label>Agrupar por<select data-f="dim">${opt(A.cats.map(c => [c.i, c.name]), A.dim ? A.dim.i : '')}</select></label>` : ''}
 ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => [c.i, c.name]), A.date ? A.date.i : '')}</select></label>` : ''}</div>` : ''}`;
-    tabs.innerHTML = Views.TABS.map(([id, label, icon]) => `<button class="tab${S.set.tab === id ? ' on' : ''}" data-act="tab" data-id="${id}">${id === 'fofo' ? Views.priSvg('happy', 18) : ic(icon)}${label}</button>`).join('');
+    tabs.innerHTML = Views.TABS.filter(x => x[0] !== 'geral' || hasOverview(b)).map(([id, label, icon]) => `<button class="tab${tab === id ? ' on' : ''}" data-act="tab" data-id="${id}">${id === 'fofo' ? Views.priSvg('happy', 18) : ic(icon)}${label}</button>`).join('');
     const on = $('.tab.on', tabs);
     if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
@@ -113,7 +123,7 @@ ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => 
     }
     if (!A || !A.n) { v.innerHTML = '<p class="empty">Esta aba da planilha não tem dados.</p>'; return; }
     ctx = newCtx();
-    v.innerHTML = `<div class="view v-${S.set.tab}">${Views.render(S.set.tab, A, ctx)}</div>`;
+    v.innerHTML = `<div class="view v-${curTab()}">${Views.render(curTab(), A, ctx)}</div>`;
     mountCharts(v, ctx);
   }
   function renderAll() { A = analysis(); renderSide(); renderTop(); renderView(); }
@@ -129,19 +139,26 @@ ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => 
 
   /* ---------- Importação ---------- */
   function ingest(raw, title, source, into) {
-    const sheets = raw.map(s => Analyze.shape(s.rows, s.name, s.hints)).filter(Boolean);
-    if (!sheets.length) throw new Error('não encontrei uma tabela com dados');
+    const sheets = [], kpis = [];
+    let found = '';
+    raw.forEach(s => { const r = Analyze.tables(s.rows, s.name, s.hints); sheets.push(...r.tables); kpis.push(...r.kpis); found = found || r.title; });
+    // planilha só de indicadores soltos: eles viram a tabela
+    if (!sheets.length && kpis.length) sheets.push({ name: 'Indicadores', tab: 'Indicadores', header: ['Aba', 'Indicador', 'Valor'], rows: kpis.map(k => [k.tab, k.label, k.value]), hints: {} });
+    // último recurso: a aba inteira como uma tabela só
+    if (!sheets.length) raw.forEach(s => { const t = Analyze.shape(s.rows, s.name, s.hints); if (t) { t.tab = s.name; sheets.push(t); } });
+    if (!sheets.length) throw new Error('não encontrei dados nesta planilha');
+    const score = s => s.rows.length * Math.min(s.header.length, 8) * (s.rows.slice(0, 20).some(r => r.some(v => v != null && Analyze.isNum(v))) ? 1 : 0.2);
+    const best = sheets.reduce((a, s, i) => score(s) > score(sheets[a]) ? i : a, 0), tabs = new Set(sheets.map(s => s.tab)).size;
     if (into) {
-      into.sheets = sheets; into.sheet = Math.min(into.sheet, sheets.length - 1);
-      saveBoard(into); renderAll();
+      Object.assign(into, { sheets, kpis, sheet: Math.min(into.sheet, sheets.length - 1) });
+      normalize(into); saveBoard(into); renderAll();
       return into;
     }
-    const best = sheets.reduce((a, s, i) => s.rows.length > sheets[a].rows.length * 3 ? i : a, 0);
-    const b = Store.create(title, source, sheets);
+    const b = Store.create(source.kind === 'gsheet' && found ? found : title, source, sheets, false, kpis);
     if (best) { b.sheet = best; DB.put('boards', b); }
-    if (S.set.tab === 'dados') S.set.tab = 'resumo';
+    S.set.tab = hasOverview(b) ? 'geral' : 'resumo';
     openBoard(b.id);
-    toast(`Pronto: ${count(sheets[best].rows.length, 'linha lida', 'linhas lidas')}${sheets.length > 1 ? ` em ${sheets.length} abas` : ''}`);
+    toast(`Pronto: ${count(sheets.length, 'tabela', 'tabelas')}${kpis.length ? ` e ${count(kpis.length, 'indicador', 'indicadores')}` : ''} em ${count(tabs, 'aba', 'abas')}`);
     return b;
   }
   async function importFile(f) {
@@ -215,7 +232,7 @@ ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => 
     const host = document.createElement('div'), c = newCtx();
     host.dataset.theme = 'light';
     host.style.cssText = 'position:fixed;left:-9999px;top:0;width:700px';
-    host.innerHTML = `<div class="view v-${S.set.tab}">${Views.render(S.set.tab, A, c)}</div>`;
+    host.innerHTML = `<div class="view v-${curTab()}">${Views.render(curTab(), A, c)}</div>`;
     document.body.append(host);
     mountCharts(host, c);
     const css = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (e) { return []; } }).map(r => r.cssText).join('\n');
@@ -226,7 +243,7 @@ ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => 
     return html;
   }
   async function exportPdf() {
-    const html = printable(), name = `${fname(A.title)} - ${Views.TABS.find(t => t[0] === S.set.tab)[1]}`;
+    const html = printable(), name = `${fname(A.title)} - ${Views.TABS.find(t => t[0] === curTab())[1]}`;
     if (!Sync.avail) return printDoc(html);
     toast('Escolha onde salvar o PDF na janela que abriu');
     try {
@@ -356,7 +373,7 @@ ${Sync.drives.length > 1 ? `<p class="muted">Há mais de uma conta do Google Dri
       : `<label>Sincronização</label><p class="muted">A sincronização automática pelo Google Drive funciona no aplicativo de Windows (Prisma.exe). Aqui, as planilhas ficam guardadas neste aparelho: use o backup para levar a outro lugar.</p>`}
 <label>Backup</label><div class="row wrap"><button class="btn ghost sm" data-k="export">${ic('dl')} Exportar backup</button><button class="btn ghost sm" data-k="import">${ic('up')} Importar…</button></div>
 <label>Zona de perigo</label><button class="btn ghost sm danger" data-k="wipe">${ic('trash')} Apagar tudo deste aparelho</button>
-<p class="muted center">Prisma 1.0 · seus dados não saem do aparelho</p>` });
+<p class="muted center">Prisma 1.1 · seus dados não saem do aparelho</p>` });
     $('#settheme', m.el).value = S.set.theme;
     $('#settheme', m.el).onchange = e => { S.set.theme = e.target.value; Store.saveSet(); applyTheme(); renderView(); };
     const again = () => { m.close(); settingsModal(); };
@@ -386,6 +403,7 @@ ${Sync.drives.length > 1 ? `<p class="muted">Há mais de uma conta do Google Dri
     install, settings: settingsModal,
     tab(el) { S.set.tab = el.dataset.id; Store.saveSet(); renderTop(); renderView(); $('#view').scrollTop = 0; },
     pdf: exportPdf, csv: exportCsv,
+    pick(el) { const b = cur(); b.sheet = +el.dataset.i; ds = { q: '', sort: null, dir: 1, limit: 200 }; S.set.tab = 'resumo'; Store.saveSet(); saveBoard(b); renderAll(); $('#view').scrollTop = 0; },
     refresh: () => importGoogle(cur().source.url, cur()),
     async remove() {
       const b = cur();

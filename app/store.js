@@ -42,7 +42,7 @@ function fmtNum(v, unit, compact) {
   if (v == null || !isFinite(v)) return '—';
   const a = Math.abs(v);
   if (unit === 'pct') return NF({ maximumFractionDigits: a < 100 ? 1 : 0 }).format(v) + '%';
-  if (compact && a >= 10000) { const s = NF({ notation: 'compact', maximumFractionDigits: 1 }).format(v); return unit === 'cur' ? 'R$ ' + s : s; }
+  if (compact && a >= 10000) { const s = NF({ notation: 'compact', maximumFractionDigits: 1 }).format(a); return (v < 0 ? '-' : '') + (unit === 'cur' ? 'R$ ' : '') + s; }
   if (unit === 'cur') return NF({ style: 'currency', currency: 'BRL', maximumFractionDigits: a >= 1000 || (compact && Number.isInteger(v)) ? 0 : 2 }).format(v);
   return NF({ maximumFractionDigits: Number.isInteger(v) || a >= 1000 ? 0 : a >= 10 ? 1 : 2 }).format(v);
 }
@@ -110,9 +110,10 @@ function normalize(b) {
   b.title = str(b.title) || 'Sem título';
   b.source = b.source && typeof b.source === 'object' ? { kind: str(b.source.kind), name: str(b.source.name), url: str(b.source.url) } : { kind: 'file', name: '', url: '' };
   b.sheets = (Array.isArray(b.sheets) ? b.sheets : []).filter(s => s && Array.isArray(s.header) && Array.isArray(s.rows)).map(s => ({
-    name: str(s.name) || 'Planilha', header: s.header.map(h => String(h ?? '')), rows: s.rows.filter(Array.isArray), hints: s.hints && typeof s.hints === 'object' ? s.hints : {},
+    name: str(s.name) || 'Planilha', tab: str(s.tab), header: s.header.map(h => String(h ?? '')), rows: s.rows.filter(Array.isArray), hints: s.hints && typeof s.hints === 'object' ? s.hints : {},
   }));
   b.sheet = Math.min(Math.max(0, parseInt(b.sheet) || 0), Math.max(0, b.sheets.length - 1));
+  b.kpis = (Array.isArray(b.kpis) ? b.kpis : []).filter(k => k && typeof k.label === 'string' && (typeof k.value === 'number' || typeof k.value === 'string')).map(k => ({ tab: str(k.tab), label: k.label, value: k.value, unit: str(k.unit) }));
   b.cfg = b.cfg && typeof b.cfg === 'object' ? b.cfg : {};
   b.cfg.charts = Array.isArray(b.cfg.charts) ? b.cfg.charts.filter(c => c && typeof c === 'object') : [];
   b.created = +b.created || Date.now(); b.updated = +b.updated || b.created;
@@ -130,9 +131,9 @@ const Store = {
     if (tb) DB.setTomb(tb);
     if (!st && !S.boards.length) Store.seed();
   },
-  create(title, source, sheets, seed) {
+  create(title, source, sheets, seed, kpis) {
     const now = Date.now();
-    const b = normalize({ id: uid(), title, source, sheets, sheet: 0, cfg: {}, created: now, updated: now });
+    const b = normalize({ id: uid(), title, source, sheets, kpis, sheet: 0, cfg: {}, created: now, updated: now });
     if (seed) b.seed = true;
     S.boards.push(b);
     DB.put('boards', b);

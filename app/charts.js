@@ -28,22 +28,25 @@ const Charts = (() => {
     return { y, g };
   }
 
+  /* Barras horizontais; com valores negativos, crescem para a esquerda a partir da linha do zero. */
+  /* Margem esquerda do tamanho do maior rótulo do eixo (R$ 30 mil ocupa mais que 30). */
+  const padL = (lo, hi, unit) => Math.max(40, maxOf(ticks(Math.min(0, lo), hi).map(v => fmtNum(v, unit, true).length)) * 6.6 + 12);
   function bar(c, W) {
-    const items = fold(c, 12), rowH = 30, maxV = Math.max(maxOf(items.map(g => Math.abs(g.v))), 1e-9);
-    const labelW = Math.min(W * 0.36, Math.max(56, maxOf(items.map(g => String(g.k).length)) * 6.6 + 14));
-    const valW = maxOf(items.map(g => fmtNum(g.v, c.unit, true).length)) * 6.9 + 12, plot = Math.max(40, W - labelW - valW), fit = Math.floor((labelW - 10) / 6.3);
-    let b = `<line x1="${labelW}" y1="0" x2="${labelW}" y2="${items.length * rowH}" stroke="var(--axis)"/>`;
+    const items = fold(c, 12), rowH = 30, lo = Math.min(0, minOf(items.map(g => g.v))), hi = Math.max(0, maxOf(items.map(g => g.v))), span = hi - lo || 1;
+    const labelW = Math.min(W * 0.36, Math.max(56, maxOf(items.map(g => String(g.k).length)) * 6.6 + 14)), fit = Math.floor((labelW - 10) / 6.3);
+    const valW = maxOf(items.map(g => fmtNum(g.v, c.unit, true).length)) * 6.9 + 12, x0 = labelW + (lo < 0 ? valW : 0), plot = Math.max(40, W - x0 - (hi > 0 ? valW : 6)), zero = x0 + plot * -lo / span;
+    let b = `<line x1="${zero}" y1="0" x2="${zero}" y2="${items.length * rowH}" stroke="var(--axis)"/>`;
     items.forEach((g, i) => {
-      const y = i * rowH + 6, h = 18, w = g.v > 0 ? Math.max(2, g.v / maxV * plot) : 0, r = Math.min(4, w);
+      const y = i * rowH + 6, h = 18, w = g.v ? Math.max(2, Math.abs(g.v) / span * plot) : 0, r = Math.min(4, w), col = `var(--${g.other ? 'other' : 's1'})`;
       b += `<g class="mk"${tip(`${g.k}: ${fmtNum(g.v, c.unit)}`)}><rect x="0" y="${i * rowH}" width="${W}" height="${rowH}" fill="transparent"/>${T(labelW - 8, y + 13, cut(g.k, fit), { anchor: 'end', fill: 'ink2' })}`
-        + (w ? `<path d="M${labelW} ${y}h${w - r}a${r} ${r} 0 0 1 ${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 1 -${r} ${r}h-${w - r}z" fill="var(--${g.other ? 'other' : 's1'})"/>` : '')
-        + T(labelW + w + 6, y + 13, fmtNum(g.v, c.unit, true), { fill: 'ink' }) + '</g>';
+        + (g.v > 0 ? `<path d="M${zero} ${y}h${w - r}a${r} ${r} 0 0 1 ${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 1 -${r} ${r}h-${w - r}z" fill="${col}"/>` : g.v < 0 ? `<path d="M${zero} ${y}h-${w - r}a${r} ${r} 0 0 0 -${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 0 ${r} ${r}h${w - r}z" fill="${col}"/>` : '')
+        + (g.v < 0 ? T(zero - w - 6, y + 13, fmtNum(g.v, c.unit, true), { fill: 'ink', anchor: 'end' }) : T(zero + w + 6, y + 13, fmtNum(g.v, c.unit, true), { fill: 'ink' })) + '</g>';
     });
     return svg(W, items.length * rowH + 4, b);
   }
 
   function cols(c, W) {
-    const items = c.items.slice(0, 36), n = items.length, H = 236, x0 = 50, x1 = W - 8, y0 = 20, y1 = H - 28;
+    const items = c.items.slice(0, 36), n = items.length, H = 236, x0 = padL(minOf(items.map(g => g.v)), maxOf(items.map(g => g.v)), c.unit), x1 = W - 8, y0 = 20, y1 = H - 28;
     const ax = yAxis(minOf(items.map(g => g.v)), maxOf(items.map(g => g.v)), c.unit, x0, x1, y0, y1), band = (x1 - x0) / n, bw = Math.max(3, Math.min(24, band - 2));
     const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor((x1 - x0) / 46))));
     let b = ax.g;
@@ -51,14 +54,14 @@ const Charts = (() => {
       const cx = x0 + band * (i + 0.5), ya = ax.y(Math.max(0, g.v)), yb = ax.y(Math.min(0, g.v)), h = Math.max(g.v ? 2 : 0, yb - ya), r = Math.min(4, bw / 2, h);
       b += `<g class="mk"${tip(`${g.long || g.k}: ${fmtNum(g.v, c.unit)}`)}><rect x="${x0 + band * i}" y="${y0}" width="${band}" height="${y1 - y0}" fill="transparent"/>`
         + (g.v >= 0 ? `<path d="M${cx - bw / 2} ${ya + h}v-${h - r}a${r} ${r} 0 0 1 ${r} -${r}h${bw - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}v${h - r}z" fill="var(--s1)"/>` : `<rect x="${cx - bw / 2}" y="${ya}" width="${bw}" height="${h}" fill="var(--s1)"/>`)
-        + (n <= 12 && band >= 38 ? T(cx, (g.v >= 0 ? ya : yb + 14) - 5, fmtNum(g.v, c.unit, true), { anchor: 'middle', fill: 'ink', size: 11 }) : '')
+        + (band >= maxOf(items.map(g => fmtNum(g.v, c.unit, true).length)) * 6.3 + 6 ? T(cx, (g.v >= 0 ? ya : yb + 14) - 5, fmtNum(g.v, c.unit, true), { anchor: 'middle', fill: 'ink', size: 11 }) : '')
         + (i % every === 0 ? T(cx, H - 10, cut(g.k, Math.max(4, Math.floor(band * every / 6.4))), { anchor: 'middle' }) : '') + '</g>';
     });
     return svg(W, H, b);
   }
 
   function line(c, W) {
-    const items = c.items, n = items.length, H = 244, x0 = 50, x1 = W - 58, y0 = 16, y1 = H - 28;
+    const items = c.items, n = items.length, H = 244, x0 = padL(minOf(items.map(g => g.v)), maxOf(items.map(g => g.v)), c.unit), x1 = W - 14 - fmtNum(items[n - 1].v, c.unit, true).length * 7, y0 = 16, y1 = H - 28;
     const ax = yAxis(minOf(items.map(g => g.v)), maxOf(items.map(g => g.v)), c.unit, x0, x1, y0, y1);
     const X = i => n === 1 ? (x0 + x1) / 2 : x0 + (x1 - x0) * i / (n - 1), pts = items.map((g, i) => [X(i), ax.y(g.v)]);
     const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(''), every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor((x1 - x0) / 58))));
@@ -74,7 +77,7 @@ const Charts = (() => {
   }
 
   function donut(c, W) {
-    const items = fold(c, 5).filter(g => g.v > 0), tot = items.reduce((a, g) => a + g.v, 0) || 1, R = 62, SW = 24, C = 2 * Math.PI * R, wide = W >= 430, cx = wide ? 98 : W / 2, cy = 98;
+    const all = fold(c, 5), sg = all.some(g => g.v > 0) ? 1 : -1, items = all.filter(g => g.v * sg > 0), tot = items.reduce((a, g) => a + g.v, 0) || 1, R = 62, SW = 24, C = 2 * Math.PI * R, wide = W >= 430, cx = wide ? 98 : W / 2, cy = 98;
     const lx = wide ? 212 : 8, ly = wide ? Math.max(18, 98 - items.length * 13) : 208, H = wide ? 196 : 214 + items.length * 26;
     let b = '', acc = 0;
     items.forEach((g, i) => {
@@ -103,10 +106,10 @@ const Charts = (() => {
   }
 
   function scatter(c, W) {
-    const stepN = Math.ceil(c.pts.length / 1200), pts = c.pts.filter((_, i) => i % stepN === 0), H = 290, x0 = 54, x1 = W - 16, y0 = 26, y1 = H - 42;
+    const stepN = Math.ceil(c.pts.length / 1200), pts = c.pts.filter((_, i) => i % stepN === 0), H = 290, x0 = padL(minOf(pts.map(p => p.y)), maxOf(pts.map(p => p.y)), c.yUnit), x1 = W - 16, y0 = 26, y1 = H - 42;
     const ax = yAxis(minOf(pts.map(p => p.y)), maxOf(pts.map(p => p.y)), c.yUnit, x0, x1, y0, y1), xt = ticks(Math.min(0, minOf(pts.map(p => p.x))), maxOf(pts.map(p => p.x)), Math.max(2, Math.floor((x1 - x0) / 90)));
     const X = v => x0 + (v - xt[0]) / (xt[xt.length - 1] - xt[0]) * (x1 - x0);
-    let b = ax.g + xt.map(v => T(X(v), y1 + 16, fmtNum(v, c.xUnit, true), { anchor: 'middle' })).join('') + T(x0 - 44, 12, c.yLabel, { fill: 'ink2' }) + T(x1, H - 6, c.xLabel, { anchor: 'end', fill: 'ink2' });
+    let b = ax.g + xt.map(v => T(X(v), y1 + 16, fmtNum(v, c.xUnit, true), { anchor: 'middle' })).join('') + T(4, 12, c.yLabel, { fill: 'ink2' }) + T(x1, H - 6, c.xLabel, { anchor: 'end', fill: 'ink2' });
     pts.forEach(p => { b += `<circle class="mk" cx="${X(p.x).toFixed(1)}" cy="${ax.y(p.y).toFixed(1)}" r="4.5" fill="var(--s1)" fill-opacity=".72" stroke="var(--surface)" stroke-width="1.5"${tip(`${p.k ? p.k + ' — ' : ''}${c.xLabel}: ${fmtNum(p.x, c.xUnit)} · ${c.yLabel}: ${fmtNum(p.y, c.yUnit)}`)}/>`; });
     return svg(W, H, b);
   }

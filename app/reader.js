@@ -114,8 +114,9 @@ const Reader = (() => {
     const head = text.slice(0, 20000);
     let best = ',', score = -1;
     for (const d of ['\t', ';', ',', '|']) {
-      const lines = head.split(/\r?\n/).filter(Boolean).slice(0, 20), counts = lines.map(l => l.split(d).length - 1);
-      const s = counts.length && counts[0] > 0 ? Math.min(...counts) + (counts.every(c => c === counts[0]) ? 1000 : 0) : -1;
+      // vale o separador presente em mais linhas (a primeira pode ser só um título, sem separador nenhum)
+      const lines = head.split(/\r?\n/).filter(Boolean).slice(0, 30), counts = lines.map(l => l.split(d).length - 1), used = counts.filter(c => c > 0);
+      const s = used.length ? used.length * 1000 + Math.min(...used) + (used.every(c => c === used[0]) ? 500 : 0) : -1;
       if (s > score) { score = s; best = d; }
     }
     const rows = [];

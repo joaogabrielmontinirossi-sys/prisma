@@ -12,7 +12,7 @@ using Microsoft.Win32;
 
 [assembly: AssemblyTitle("Prisma")]
 [assembly: AssemblyProduct("Prisma")]
-[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
 
 static class Program
 {

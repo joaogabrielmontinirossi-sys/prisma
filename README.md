@@ -29,12 +29,21 @@ Como o arquivo não é assinado, o Windows pode mostrar o aviso do SmartScreen n
 - **Link do Google Planilhas**: cole o endereço da planilha. Ela precisa estar compartilhada como *Qualquer pessoa com o link*. O botão **Atualizar** busca a versão mais recente quando a planilha mudar.
 - **Colar**: copie as células no Excel ou no Google Planilhas e cole na caixa. Serve para planilhas particulares.
 
-O Prisma acha sozinho o cabeçalho, pula linhas de título, ignora linhas de "Total" e descobre o tipo de cada coluna (número, R$, %, data, categoria, texto). Se errar, o tipo pode ser trocado na aba **Dados**. A barra de foco no topo escolhe qual valor analisar, por qual coluna agrupar e se a conta é soma ou média.
+## Como ele entende a planilha
+
+Planilhas de verdade raramente são uma tabela só. O Prisma recorta cada aba em blocos e separa o que encontra:
+
+- **Tabelas**: várias por aba, lado a lado ou empilhadas, com células mescladas, linhas em branco no meio e espaços reservados entre grupos. Cada uma vira uma tabela analisável, escolhida no seletor **Tabela** ou na Visão geral.
+- **Indicadores**: números soltos com rótulo em cima ou ao lado (os "cartões" de um painel). Aparecem na Visão geral; quando o mesmo indicador se repete em várias abas (o saldo de cada mês, por exemplo), vira um gráfico comparando as abas.
+- **Títulos e observações**: dão nome à planilha e às tabelas e ficam fora das contas.
+
+Também reconhece tabelas com os períodos nas colunas (jan, fev… ou 2023, 2024…), valores negativos (saídas) misturados com positivos (entradas), traços e erros de fórmula usados como "sem valor", linhas de "Total" e o tipo de cada coluna (número, R$, %, data, categoria, texto, código). Se errar, o tipo pode ser trocado na aba **Dados**. A barra de foco no topo escolhe a tabela, qual valor analisar, por qual coluna agrupar e se a conta é soma ou média.
 
 ## O que ele gera
 
 | Aba | Para quê |
 | --- | --- |
+| **Visão geral** | Tudo o que foi encontrado na planilha inteira: indicadores, comparação entre abas e a lista de tabelas (aparece quando há mais de uma tabela ou indicadores) |
 | **Resumo** | Número principal, indicadores, "em uma frase", "em 3 pontos", resumo completo e um texto pronto para mandar por mensagem |
 | **Gráficos** | Galeria automática (linha no tempo, barras, rosca, distribuição, dispersão) e um montador para criar os seus; cada gráfico vira imagem PNG ou tabela |
 | **Relatório** | Documento formal com sumário executivo, análise, perfil das colunas e qualidade dos dados |
@@ -43,7 +52,7 @@ O Prisma acha sozinho o cabeçalho, pula linhas de título, ignora linhas de "To
 | **Cartões** | Um achado por imagem (1080×1350), para salvar ou compartilhar |
 | **Dados** | A tabela com busca, ordenação e exportação em CSV |
 
-Resumo, Relatório, Infográfico e Fofinho saem em **PDF**.
+Visão geral, Resumo, Relatório, Infográfico e Fofinho saem em **PDF**.
 
 ## Sincronização
 
