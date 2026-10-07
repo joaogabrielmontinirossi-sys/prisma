@@ -1,5 +1,7 @@
 # Prisma
 
+[![Captura de tela do Prisma](docs/captura.png)](https://joaogabrielmontinirossi-sys.github.io/prisma/)
+
 Transforma qualquer planilha do Excel ou do Google Planilhas em resumo, gráficos, relatório, infográfico e cartões prontos para compartilhar, incluindo uma versão bem fofinha para quem não é de números. Funciona no navegador, no celular e no Windows, com sincronização entre computadores pelo Google Drive.
 
 Os dados são lidos e analisados no próprio aparelho: nada é enviado para servidores.
@@ -85,3 +87,7 @@ Gera `dist\Prisma.exe` e `dist\prisma.html` (versão em arquivo único, que abre
 | `app/views.js` | As sete abas |
 | `desktop/Prisma.cs` | Programa de Windows: serve o app em `localhost`, grava a pasta de sincronização, baixa planilhas do Google e gera o PDF |
 | `build.ps1` | Gera os ícones, compila o `.exe` e monta o arquivo único |
+
+## Licença
+
+[MIT](LICENSE): pode usar, copiar, modificar e distribuir livremente, mantendo o aviso de autoria.
