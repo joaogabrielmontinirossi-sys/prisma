@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prisma</title>
+<meta name="description" content="Prisma — transforma qualquer planilha do Excel ou do Google em resumo, gráficos, relatório, infográfico e cartões.">
+<meta name="theme-color" content="#5b47d6">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Prisma">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar"></aside>
+  <main id="main">
+    <header id="topbar"></header>
+    <nav id="tabs"></nav>
+    <div id="view"></div>
+  </main>
+</div>
+<div id="scrim"></div>
+<div id="toast"></div>
+<div id="tip" hidden></div>
+<input type="file" id="filepick" multiple hidden>
+<script src="gsync.js" data-app="prisma"></script>
+<script src="store.js"></script>
+<script src="reader.js"></script>
+<script src="analyze.js"></script>
+<script src="charts.js"></script>
+<script src="views.js"></script>
+<script src="app.js"></script>
+<script src="elo.js" data-app="prisma"></script>
+</body>
+</html>
