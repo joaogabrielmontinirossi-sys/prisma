@@ -1,4 +1,5 @@
 'use strict';
+const GSync = window.GSyncLib || { web: false, on: () => false, io: null, html: () => '', off() {}, onChange: null };
 /* Prisma — interface: lista de planilhas, importação, visões, exportação e sincronização */
 
 (() => {
@@ -362,11 +363,11 @@ ${opt('aba', `Só a aba ${label(tab)}`, 'Apenas o que está na tela agora.')}
     S.boards.filter(o => o.seed).forEach(o => { S.boards = S.boards.filter(x => x !== o); DB.del('boards', o.id, true); });
   }
   async function syncNow(manual) {
-    if (!Sync.on) return;
+    if (!Sync.on && !GSync.on()) return;
     if (Sync.busy) { Sync.again = true; return; }
     Sync.busy = true;
     try {
-      const r = await api('sync');
+      const r = await (Sync.on ? api('sync') : GSync.io());
       if (!r.ok) throw new Error('não foi possível ler a pasta');
       const text = r.status === 200 ? await r.text() : '', remote = text.trim() ? JSON.parse(text) : null;
       let pulled = 0;
@@ -376,7 +377,7 @@ ${opt('aba', `Só a aba ${label(tab)}`, 'Apenas o que está na tela agora.')}
       }
       const local = { app: 'prisma', version: 1, exported: Date.now(), boards: S.boards, tombstones: DB.tomb() };
       if (!remote || syncSig(remote) !== syncSig(local)) {
-        const w = await api('sync', { method: 'POST', body: JSON.stringify(local) });
+        const w = await (Sync.on ? api('sync', { method: 'POST', body: JSON.stringify(local) }) : GSync.io({ method: 'POST', body: JSON.stringify(local) }));
         if (!w.ok) throw new Error('não foi possível gravar na pasta');
       }
       if (!S.set.syncedOnce) { S.set.syncedOnce = true; Store.saveSet(); }
@@ -408,7 +409,7 @@ ${Sync.avail ? `<label>Sincronização com o Google Drive</label>
 <div class="row wrap">${Sync.on ? `<button class="btn ghost sm" data-k="syncnow">${ic('sync')} Sincronizar agora</button><button class="btn ghost sm" data-k="syncoff">Desativar</button>` : Sync.detected ? `<button class="btn sm" data-k="syncauto">Ativar no Google Drive</button>` : ''}<button class="btn ghost sm" data-k="syncpick">Escolher outra pasta…</button></div>
 ${Sync.drives.length > 1 ? `<p class="muted">Há mais de uma conta do Google Drive neste computador: cada unidade (G:, H:…) é uma conta.</p><div class="row wrap">${Sync.drives.map(d => `<button class="btn ghost sm" data-k="syncuse" data-path="${esc(d)}">${esc(d)}</button>`).join('')}</div>` : ''}
 <p class="muted">O Prisma grava o arquivo prisma-sync.json na pasta e o Google Drive leva para os outros computadores.</p>`
-      : `<label>Sincronização</label><p class="muted">A sincronização automática pelo Google Drive funciona no aplicativo de Windows (Prisma.exe). Aqui, as planilhas ficam guardadas neste aparelho: use o backup para levar a outro lugar.</p>`}
+      : `${GSync.web ? GSync.html() : `<label>Sincronização</label><p class="muted">A sincronização automática pelo Google Drive funciona no aplicativo de Windows (Prisma.exe). Aqui, as planilhas ficam guardadas neste aparelho: use o backup para levar a outro lugar.</p>`}`}
 <label>Backup</label><div class="row wrap"><button class="btn ghost sm" data-k="export">${ic('dl')} Exportar backup</button><button class="btn ghost sm" data-k="import">${ic('up')} Importar…</button></div>
 <label>Zona de perigo</label><button class="btn ghost sm danger" data-k="wipe">${ic('trash')} Apagar tudo deste aparelho</button>
 <p class="muted center">Prisma 1.2 · seus dados não saem do aparelho</p>` });
@@ -426,7 +427,7 @@ ${Sync.drives.length > 1 ? `<p class="muted">Há mais de uma conta do Google Dri
       if (k === 'export') saveBlob(new Blob([backupData(S.boards)], { type: 'application/json' }), `prisma-backup-${dayKey(Date.now())}.json`);
       if (k === 'import') { m.close(); importBackup(await pickFiles('.json')); }
       if (k === 'wipe' && await confirmBox('Apagar tudo', 'Todas as planilhas deste aparelho serão apagadas. Isso não pode ser desfeito.' + (Sync.on ? ' A sincronização será desativada e a cópia no Google Drive continua lá.' : ''), 'Apagar tudo', true)) {
-        if (Sync.on) await api('sync/config', { method: 'POST', body: 'off' });
+        if (Sync.on) await api('sync/config', { method: 'POST', body: 'off' }); GSync.off();
         await DB.clear('boards'); await DB.clear('kv');
         location.reload();
       }
@@ -514,9 +515,10 @@ ${Sync.drives.length > 1 ? `<p class="muted">Há mais de uma conta do Google Dri
       navigator.serviceWorker.register('sw.js').catch(e => console.warn('Sem modo offline:', e));
     }
     if (/^https?:$/.test(location.protocol)) await syncInfo();
-    if (Sync.avail) {
+    if (Sync.avail || GSync.web) {
+      GSync.onChange = () => syncNow(true);
       const first = Sync.on && !S.set.syncedOnce;
-      DB.onChange = () => { if (Sync.on) syncSoon(); };
+      DB.onChange = () => { if (Sync.on || GSync.on()) syncSoon(); };
       await syncNow();
       if (first && !Sync.error) toast('Sincronizando com o Google Drive: ' + Sync.folder);
       setInterval(() => syncNow(), 60000);
