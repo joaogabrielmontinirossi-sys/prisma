@@ -138,6 +138,7 @@ ${A.dates.length > 1 ? `<label>Data<select data-f="date">${opt(A.dates.map(c => 
     upgrading.add(b.id);
     importGoogle(b.source.url, b);
   }
+  window.EloOpen = id => openBoard(id);
   function openBoard(id) {
     S.set.cur = id; ds = { q: '', sort: null, dir: 1, limit: 200 };
     Store.saveSet();
